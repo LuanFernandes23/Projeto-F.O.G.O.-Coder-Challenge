@@ -1,0 +1,7 @@
+# LF em tudo: Dockerfiles, scripts e SQL rodam em contêineres Linux, mesmo clonados no Windows.
+* text=auto eol=lf
+
+*.webp binary
+*.png binary
+*.jpg binary
+*.ico binary

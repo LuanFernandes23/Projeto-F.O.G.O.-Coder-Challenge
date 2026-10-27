@@ -1,0 +1,83 @@
+[project]
+name = "fogo-backend"
+version = "0.1.0"
+description = "F.O.G.O. — Ferramenta Onisciente de Gestão e Operações (API do inventário inteligente da cidade)"
+requires-python = "==3.12.*"
+readme = "../README.md"
+# Dependências diretas fixadas. O lock completo (com transitivas) fica em requirements.txt.
+dependencies = [
+    "fastapi[standard]==0.136.3",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.16.1",
+    "sqlalchemy[asyncio]==2.0.50",
+    "psycopg[binary]==3.3.4",
+    "httpx==0.28.1",
+    "apscheduler==3.11.2",
+    "alembic==1.20.1",
+    "geoalchemy2==0.20.0",
+    "pyjwt==2.15.1",
+    "pwdlib[argon2]==0.3.1",
+    "tzdata==2026.5",  # base de fusos para zoneinfo (Windows e imagens slim)
+    # Parte 3 — previsões, RAG e o agente PROMETHEUS
+    "numpy==2.5.4",
+    "cryptography==50.0.2",  # Fernet: chave de API do modelo de IA cifrada no banco
+    "pgvector==0.5.1",
+    "fastembed==0.9.1",  # embeddings locais (ONNX, sem torch): o RAG funciona sem chave
+    "psycopg-pool==3.3.3",
+    "langgraph==1.2.18",
+    "langgraph-checkpoint-postgres==3.2.0",
+    "langchain-core==1.7.0",
+    "langchain-openai==1.7.3",
+    "langchain-anthropic==1.7.6",
+    "langchain-google-genai==4.4.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.17.2",
+    "mypy==2.4.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "N", "SIM", "RUF", "ASYNC", "S", "PT", "RET", "TC"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # textos em português usam caracteres como "–" e "º"
+    "B008",                         # Depends()/Query() em defaults é o idioma do FastAPI
+    "TC001", "TC002", "TC003",      # FastAPI/Pydantic precisam dos tipos em runtime
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S311"]
+"app/seed/**" = ["S311"]  # random determinístico para dados de demonstração, não criptográfico
+"app/simulator/**" = ["S311"]  # idem: simulação, não criptografia
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app"]
+
+[[tool.mypy.overrides]]
+module = ["geoalchemy2.*", "apscheduler.*", "yaml.*", "fastembed.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+markers = [
+    "integration: testes que usam PostgreSQL/PostGIS real",
+]
+filterwarnings = ["error::pytest.PytestUnraisableExceptionWarning"]

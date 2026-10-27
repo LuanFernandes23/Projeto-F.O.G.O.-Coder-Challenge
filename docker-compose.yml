@@ -1,0 +1,111 @@
+name: fogo
+
+x-backend: &backend
+  build:
+    context: ./backend
+    target: runtime
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  networks: [fogo]
+  restart: unless-stopped
+
+services:
+  postgres:
+    build:
+      context: ./backend/docker/postgres
+    image: fogo-postgres:16-3.4-pgvector
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: America/Sao_Paulo
+    ports:
+      - "${POSTGRES_HOST_PORT:-5544}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [fogo]
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    command: ["sh", "-c", "alembic upgrade head && python -m app.bootstrap"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *backend
+    command:
+      - uvicorn
+      - app.main:create_app
+      - --factory
+      - --host=0.0.0.0
+      - --port=8000
+      - --proxy-headers
+    ports:
+      - "${API_HOST_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  scheduler:
+    <<: *backend
+    command: ["python", "-m", "app.jobs.scheduler"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: ./frontend
+      additional_contexts:
+        docs: ./docs # manual do usuário (docs/manual.md + prints)
+    ports:
+      - "${WEB_HOST_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks: [fogo]
+    restart: unless-stopped
+
+  simulator:
+    <<: *backend
+    command: ["python", "-m", "app.simulator.main"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SIMULATOR_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+  tests:
+    build:
+      context: ./backend
+      target: test
+    profiles: ["test"]
+    environment:
+      TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/fogo_test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [fogo]
+
+volumes:
+  postgres-data:
+
+networks:
+  fogo:

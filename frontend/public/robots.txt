@@ -1,0 +1,3 @@
+# Aplicação interna da Central de Operações: não indexar.
+User-agent: *
+Disallow: /

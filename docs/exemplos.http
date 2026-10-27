@@ -1,0 +1,96 @@
+# Exemplos de requisições (VS Code REST Client / JetBrains HTTP Client)
+# Suba o ambiente com `docker compose up --build` antes de executar.
+
+@base = http://localhost:8000/api/v1
+
+### 1. Login (guarde o access_token)
+# @name login
+POST {{base}}/auth/token
+Content-Type: application/x-www-form-urlencoded
+
+username=gestor@fogo.dev&password=Fogo@2026
+
+###
+@token = {{login.response.body.access_token}}
+
+### 2. Tipos de equipamento + JSON Schema das características
+GET {{base}}/equipment-types
+Authorization: Bearer {{token}}
+
+### 3. Órgãos responsáveis
+# @name orgs
+GET {{base}}/organizations
+Authorization: Bearer {{token}}
+
+### 4. Autopreencher endereço pelo CEP
+GET {{base}}/addresses/cep/17509-180
+Authorization: Bearer {{token}}
+
+### 5. Cadastrar uma câmera com plano de manutenção a cada 90 dias
+# @name camera
+POST {{base}}/equipment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "type_code": "camera",
+  "serial_number": "HKV-2026-900001",
+  "brand": "Hikvision",
+  "model": "DS-2DE4425IW",
+  "organization_id": "{{orgs.response.body.$[2].id}}",
+  "status": "operacional",
+  "installed_on": "2026-10-01",
+  "address": {
+    "cep": "17509-180",
+    "street": "Avenida Vicente Ferreira",
+    "reference": "oposto ao número 181",
+    "neighborhood": "Centro",
+    "city": "Marília",
+    "uf": "SP"
+  },
+  "location": { "latitude": -22.2141, "longitude": -49.9462 },
+  "attributes": { "resolution": "4k", "night_vision": true, "ptz": true },
+  "maintenance_plan": { "interval_days": 90 }
+}
+
+### 6. Registrar mau funcionamento (abre ordem corretiva imediata automaticamente)
+POST {{base}}/equipment/{{camera.response.body.id}}/status-changes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "to_status": "mau_funcionamento", "reason": "Lente danificada por vandalismo" }
+
+### 7. Ordens de manutenção do equipamento
+GET {{base}}/equipment/{{camera.response.body.id}}/maintenance-orders
+Authorization: Bearer {{token}}
+
+### 8. Transição inválida → 409 com as transições permitidas
+POST {{base}}/equipment/{{camera.response.body.id}}/status-changes
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "to_status": "nao_instalado", "reason": "teste" }
+
+### 9. Equipamentos num raio de 1 km do centro, do mais próximo ao mais distante
+GET {{base}}/equipment?lat=-22.2139&lng=-49.9458&radius_m=1000&sort=distance&limit=10
+Authorization: Bearer {{token}}
+
+### 10. Manutenção imediata ou vencendo nos próximos 7 dias
+GET {{base}}/equipment?maintenance_due_within_days=7&sort=next_maintenance_date
+Authorization: Bearer {{token}}
+
+### 11. Manutenções vencidas
+GET {{base}}/equipment?maintenance_overdue=true
+Authorization: Bearer {{token}}
+
+### 12. Histórico de situações (auditoria)
+GET {{base}}/equipment/{{camera.response.body.id}}/status-history
+Authorization: Bearer {{token}}
+
+### 13. Agentes em serviço agora
+GET {{base}}/agents?on_duty=true
+Authorization: Bearer {{token}}
+
+### 14. Regiões com polígono GeoJSON (base para o mapa da Parte 2)
+GET {{base}}/regions?include_geometry=true
+Authorization: Bearer {{token}}
