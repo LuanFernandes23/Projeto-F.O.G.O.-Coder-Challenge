@@ -76,6 +76,17 @@ def test_chat_screening_masks_pii_and_refuses_injection() -> None:
     _, _, refusal = screen([{"role": "user", "content": "x" * 1001}])
     assert refusal is not None
 
+    # O CPF de uma pergunta anterior continua mascarado, mas não é anunciado de novo.
+    history, notices, _ = screen(
+        [
+            {"role": "user", "content": "O agente de CPF 123.456.789-09 está onde?"},
+            {"role": "assistant", "content": "Não informo dados de pessoas."},
+            {"role": "user", "content": "E os semáforos do Centro?"},
+        ]
+    )
+    assert "[CPF]" in history[0]["content"]
+    assert notices == []
+
 
 def test_rate_limiter_blocks_after_limit() -> None:
     limiter = RateLimiter(limit=2, window=60)

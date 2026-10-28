@@ -83,9 +83,11 @@ def screen(history: list[dict[str, str]]) -> tuple[list[dict[str, str]], list[st
         )
     cleaned: list[dict[str, str]] = []
     removed: list[str] = []
-    for message in history:
+    for index, message in enumerate(history):
         content, found = redact_pii(redact_secrets(message["content"]))
-        if message["role"] == "user":
+        # Todo o histórico é saneado, mas o aviso fala só da pergunta atual: senão o CPF de uma
+        # pergunta antiga voltava a ser anunciado em cada resposta seguinte.
+        if message["role"] == "user" and index == len(history) - 1:
             removed += found
             if content != redact_pii(message["content"])[0]:
                 removed.append("segredo")
@@ -315,8 +317,15 @@ class PrometheusChat:
             return
         history, notices, refusal = screen(history)
         if refusal:
-            yield {"type": "guardrail", "notices": [refusal], "blocked": True}
-            yield {"type": "error", "message": refusal}
+            # A recusa é a resposta (texto normal), não um erro: antes ela saía duas vezes e com o
+            # link de "configurar IA", que não tem a ver com o bloqueio.
+            yield {
+                "type": "guardrail",
+                "notices": ["Bloqueado pelas proteções do chat."],
+                "blocked": True,
+            }
+            yield {"type": "token", "text": refusal}
+            yield {"type": "done", "input_tokens": 0, "output_tokens": 0}
             return
         if notices:
             yield {"type": "guardrail", "notices": notices, "blocked": False}

@@ -89,7 +89,8 @@ export function useOpenPreventiveOrder() {
     mutationFn: ({ equipmentId, description }: { equipmentId: string; description: string }) =>
       api(`/equipment/${equipmentId}/maintenance-orders`, {
         method: "POST",
-        body: { kind: "preventiva", priority: "agendada", description, scheduled_for: null },
+        // "agendada" exige data no servidor (422); antecipar é agir já, como faz o PROMETHEUS.
+        body: { kind: "preventiva", priority: "imediata", description, scheduled_for: null },
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["map-features"] });
